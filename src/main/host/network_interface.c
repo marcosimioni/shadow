@@ -339,6 +339,11 @@ void networkinterface_disassociate(NetworkInterface* interface, const CompatSock
 }
 
 static void _networkinterface_capturePacket(NetworkInterface* interface, Packet* packet) {
+
+    if (address_isLocal(interface->address)) {
+        trace("Discarding local packet %s %d", address_toHostIPString(interface->address), address_isLocal(interface->address));
+        return;
+    }
     PCapPacket* pcapPacket = g_new0(PCapPacket, 1);
 
     pcapPacket->headerSize = packet_getHeaderSize(packet);
