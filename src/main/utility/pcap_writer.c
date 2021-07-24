@@ -14,6 +14,7 @@
 
 struct _PCapWriter {
     FILE *pcapFile;
+    FILE *csvFile;
 };
 
 static void _pcapwriter_writeHeader(PCapWriter* pcap) {
@@ -40,6 +41,8 @@ static void _pcapwriter_writeHeader(PCapWriter* pcap) {
     fwrite(&sigfigs, 1, sizeof(sigfigs), pcap->pcapFile);
     fwrite(&snaplen, 1, sizeof(snaplen), pcap->pcapFile);
     fwrite(&network, 1, sizeof(network), pcap->pcapFile);
+
+    fprintf(pcap->csvFile, "timestamp,sourceIP,sourcePort,destIP,destPort\n");
 }
 
 void pcapwriter_writePacket(PCapWriter* pcap, PCapPacket* packet) {
@@ -134,6 +137,13 @@ void pcapwriter_writePacket(PCapWriter* pcap, PCapPacket* packet) {
     if(payloadLength > 0 && packet->payload) {
         fwrite(packet->payload, 1, payloadLength, pcap->pcapFile);
     }
+
+    if(!pcap || !pcap->csvFile || !packet) {
+        return;
+    }
+
+    /* write to CSV too */
+    fprintf(pcap->csvFile, "%d.%06d,%s,%d,%s,%d\n", ts_sec, ts_usec, address_ipToNewString(packet->srcIP), ntohs(packet->srcPort), address_ipToNewString(packet->dstIP), ntohs(packet->dstPort));
 }
 
 PCapWriter* pcapwriter_new(Host* host, gchar* pcapDirectory, gchar* pcapFilename) {
@@ -165,7 +175,18 @@ PCapWriter* pcapwriter_new(Host* host, gchar* pcapDirectory, gchar* pcapFilename
     pcap->pcapFile = fopen(filename->str, "w");
     if(!pcap->pcapFile) {
         warning("error trying to open PCAP file '%s' for writing", filename->str);
-    } else {
+    }
+
+    if (!g_str_has_suffix(filename->str, ".csv")) {
+        g_string_append(filename, ".csv");
+    }
+
+    pcap->csvFile = fopen(filename->str, "w");
+    if(!pcap->csvFile) {
+        warning("error trying to open CSV file '%s' for writing", filename->str);
+    }
+
+    if(pcap->pcapFile && pcap->csvFile) {
         _pcapwriter_writeHeader(pcap);
     }
 
@@ -175,5 +196,8 @@ PCapWriter* pcapwriter_new(Host* host, gchar* pcapDirectory, gchar* pcapFilename
 void pcapwriter_free(PCapWriter* pcap) {
     if(pcap && pcap->pcapFile) {
         fclose(pcap->pcapFile);
+    }
+    if(pcap && pcap->csvFile) {
+        fclose(pcap->csvFile);
     }
 }
