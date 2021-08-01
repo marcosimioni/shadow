@@ -18,7 +18,7 @@ struct _PCapWriter {
 };
 
 static void _pcapwriter_writeHeader(PCapWriter* pcap) {
-    fprintf(pcap->csvFile, "timestamp,sourceIP,sourcePort,destIP,destPort\n");
+    fprintf(pcap->csvFile, "timestamp,sourceIP,sourcePort,destIP,destPort,tcpSequence,tcpFlags,payloadLength\n");
 }
 
 void pcapwriter_writePacket(PCapWriter* pcap, PCapPacket* packet) {
@@ -40,8 +40,23 @@ void pcapwriter_writePacket(PCapWriter* pcap, PCapPacket* packet) {
         return;
     }
 
+    guint8 tcpFlags = 0;
+    if(packet->rstFlag) tcpFlags |= 0x04;
+    if(packet->synFlag) tcpFlags |= 0x02;
+    if(packet->ackFlag) tcpFlags |= 0x10;
+    if(packet->finFlag) tcpFlags |= 0x01;
+
     /* write to CSV too */
-    fprintf(pcap->csvFile, "%d.%06d,%s,%d,%s,%d\n", ts_sec, ts_usec, address_ipToNewString(packet->srcIP), ntohs(packet->srcPort), address_ipToNewString(packet->dstIP), ntohs(packet->dstPort));
+    fprintf(pcap->csvFile, "%d.%06d,%s,%d,%s,%d,%d,%d,%d\n",
+      ts_sec,
+      ts_usec,
+      address_ipToNewString(packet->srcIP),
+      ntohs(packet->srcPort),
+      address_ipToNewString(packet->dstIP),
+      ntohs(packet->dstPort),
+      packet->seq,
+      tcpFlags,
+      packet->payloadLength);
 }
 
 PCapWriter* pcapwriter_new(Host* host, gchar* pcapDirectory, gchar* pcapFilename) {
